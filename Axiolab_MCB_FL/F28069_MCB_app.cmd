@@ -141,8 +141,8 @@ SECTIONS
    csm_rsvd            : > CSM_RSVD,   PAGE = 0
 
    /* Allocate uninitalized data sections: */
-   .stack              : > RAMM1,      PAGE = 1
-   .ebss               : >> RAML2 | RAML4 | RAML5 | RAML6 | RAML7 | RAML8,      PAGE = 1
+   .stack              : > RAML4,      PAGE = 1
+   .ebss               : >> RAMM1 | RAML2 | RAML4 | RAML5 | RAML6 | RAML7 | RAML8,      PAGE = 1
          					RUN_START(_ebss_start),
    							RUN_SIZE(_ebss_size)
 

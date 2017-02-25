@@ -186,7 +186,7 @@ all: Axiolab_MCB_FL.out
 Axiolab_MCB_FL.out: $(OBJS) $(CMD_SRCS) $(LIB_SRCS) $(GEN_CMDS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: C2000 Linker'
-	"C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/bin/cl2000" -v28 -ml -mt --cla_support=cla0 --float_support=fpu32 --vcu_support=vcu0 --opt_for_speed=3 --advice:performance=all --define=DEBUG --define=ccs_c2k -g --diag_warning=225 --diag_wrap=off --display_error_number -z -m"Axiolab_MCB_FL.map" --heap_size=0x1000 --stack_size=0x3b0 --warn_sections -i"C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/lib" -i"C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include" --reread_libs --diag_wrap=off --display_error_number --xml_link_info="Axiolab_MCB_FL_linkInfo.xml" --rom_model -o "Axiolab_MCB_FL.out" $(ORDERED_OBJS)
+	"C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/bin/cl2000" -v28 -ml -mt --cla_support=cla0 --float_support=fpu32 --vcu_support=vcu0 --opt_for_speed=3 --advice:performance=all --define=DEBUG --define=ccs_c2k -g --diag_warning=225 --diag_wrap=off --display_error_number -z -m"Axiolab_MCB_FL.map" --heap_size=0x1000 --stack_size=0x500 --warn_sections -i"C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/lib" -i"C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include" --reread_libs --diag_wrap=off --display_error_number --xml_link_info="Axiolab_MCB_FL_linkInfo.xml" --rom_model -o "Axiolab_MCB_FL.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	@$(MAKE) --no-print-directory post-build
