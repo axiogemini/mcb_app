@@ -1,0 +1,54 @@
+/*
+ * Descriptor.h
+ *
+ *  Created on: 2016?10?10?
+ *      Author: ZCTIAXIA
+ */
+
+#ifndef SRC_DESCRIPTORTASK_H_
+#define SRC_DESCRIPTORTASK_H_
+
+#include "TaskMgr.h"
+
+#define         MAX_TEXT_LEN            101
+
+typedef enum {
+	DESC_WAITING,
+	DESC_WRITING,
+	DESC_READING,
+	DESC_FINISH
+} DESC_STS;
+
+typedef enum {
+	DESCFMT_TEXT = 1,
+	DESCFMT_BYTE,
+	DESCFMT_UBYTE,
+	DESCFMT_SHORT,
+	DESCFMT_USHORT,
+	DESCFMT_LONG,
+	DESCFMT_ULONG,
+	DESCFMT_FLOAT = 0x10,
+	DESCFMT_DOUBLE
+} DESCFORMAT;
+
+typedef struct {
+	Uint16		DescId;
+	Uint16		DescEntry;
+	Uint8		Format;
+	uint8_t 	*pCmdFrame;
+	void 		*pBuf;   	  //data to/from upper app layer, can't be malloc or free at desc task mgr.
+	uint8_t		*pWorkSpace;  //buffer to store data of EEPROM, 8 bit every element. should be free after task is over
+	Uint16	 	Len;		  //length of workspace, NumOfItems x format_length
+	bool 		NeedAnswer;
+	int8_t 		MemProd;
+	tSemiphore	*pSem;
+	Uint32		SysTick;
+	uint8_t 	TimeoutCount;
+} DescTask;
+
+extern void UsbDescCmdHandler(const Uint16 *pFrame);
+extern void WriteDesc(Uint16 Id, Uint16 Entry, void *pData, Uint16 NumOfItems, DESCFORMAT Format);
+extern void ReadDesc(Uint16 DescId, Uint16 DescEntry, Uint16 *pBuf, Uint16 NumOfItems, DESCFORMAT Format);
+extern void DescInitRead(Uint16 Id, Uint16 Entry, void *pData, Uint16 NumOfItems, DESCFORMAT Format);
+
+#endif /* SRC_DESCRIPTORTASK_H_ */

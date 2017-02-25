@@ -1,0 +1,47 @@
+20161006:
+修正:
+canrxtask配置邮箱bug ->启动任务前要配置对应的邮箱，并设置正确的ide,ame,aam位
+writedesc buffer写入时的循环用了length->应该用NumOfItems
+SaveParcenterMgr()里的parcenter，移位代码bug
+整个save parfocal过程结束后清sem和mailboxbusy
+改UsbRwDescTaskMgr名为RwDescTaskMgr
+
+parfocal可以记录，转NP时发给Z轴的数字可能不对，动的距离很长。
+
+20161010:
+修正：
+更新parfocal逻辑，使用event订阅XYZ最新稳定位置，actual pos无条件实时更新，parfocal ref值由PfInitiated和event来执行
+parfocal参数6位设满后一次写入
+parfocal的执行和物镜的采样为500ms
+
+20161011 demo版本
+阶段性的Parfocal版本，没有避让
+光源控制都OK
+
+20161012
+修改物镜、reflector等的settle判定，前次值和后值比较，稳定了再计算位置，以及置settle位
+
+20161013
+增强Pid机制
+snap+handwheel临时功能
+
+20161020
+save parfocal值时更新到基准
+
+20161115
+
+1.	改parfocal逻辑：SETUP之后设置第一个parfocal位置则清除RAM中之前所有位置。E2prom保存机制不变
+2.	Enable / disable LM改为在NORMAL状态下有效。Disable时候对应指示灯变红闪烁，enable时候指示灯保持绿色闪烁。松手之后停止闪烁。
+3.	在normal模式下双击snap键平台下行1cm避让，再次双击上行1cm归位。如果在避让位置时，Z轴位置移动超过1um，则清除状态，以避免用户误操作。此时双击仍执行往下1cm操作。
+4.	原先如果长按进入SETUP后先松开LM后松开SNAP，则可能误触发记录parfocal，修正。
+5.	LM时记录最后一次非零intensity，以供离开亮度为0的nosepiece时候恢复照明亮度
+6.	in SETUP mode, the LM adjustment only applies to current nosepiece.
+
+20170111
+?fw update????reset???
+
+20170112
+fw update, can jump back to main() of it-self, and send ack after reset and establish usb connection, this is realized by add appcheck() in rxhandler()
+
+20170113
+fw update, support CANTEST fw update repeatedly from app->bl->app

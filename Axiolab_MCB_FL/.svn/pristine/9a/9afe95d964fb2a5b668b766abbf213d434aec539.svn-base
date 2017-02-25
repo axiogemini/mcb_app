@@ -1,0 +1,183 @@
+# FIXED
+
+src/nosepiece.obj: ../src/nosepiece.c
+src/nosepiece.obj: ../src/include.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/math.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/linkage.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/_defs.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdbool.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdint.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdio.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdarg.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdlib.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdlibf.h
+src/nosepiece.obj: C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/string.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/inc/hw_ints.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/inc/hw_memmap.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/inc/hw_types.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/inc/hw_usb.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/debug.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/interrupt.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/rom.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/sysctl.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/systick.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/uart.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/usb.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/usb_hal.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/usblib.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/usb-ids.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/device/usbdevice.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/device/usbdevicepriv.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/device/usbdbulk.h
+src/nosepiece.obj: C:/ti/controlSUITE/device_support/f2806x/v151/MWare/utils/uartstdio.h
+src/nosepiece.obj: ../src/usb_bulk_structs.h
+src/nosepiece.obj: C:/code/MCB/include/Flash2806x_API_Library.h
+src/nosepiece.obj: C:/code/MCB/include/Flash2806x_API_Config.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Device.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Adc.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_BootVars.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Cla.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Comp.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_CpuTimers.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_DevEmu.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Dma.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_ECan.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_ECap.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_EPwm.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_EQep.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Gpio.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_HRCap.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_I2c.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Mcbsp.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_NmiIntrupt.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_PieCtrl.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_PieVect.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Spi.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Sci.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_SysCtrl.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Usb.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_XIntrupt.h
+src/nosepiece.obj: ../src/F2806x_Config.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_GlobalPrototypes.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_EPwm_defines.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_I2c_defines.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Dma_defines.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_Cla_defines.h
+src/nosepiece.obj: C:/code/MCB/include/F2806x_DefaultISR.h
+src/nosepiece.obj: ../src/Adc.h
+src/nosepiece.obj: ../src/app.h
+src/nosepiece.obj: ../src/CAN29.h
+src/nosepiece.obj: ../src/TaskMgr.h
+src/nosepiece.obj: ../src/CmdHandler.h
+src/nosepiece.obj: ../src/Descriptor.h
+src/nosepiece.obj: ../src/Device_Init.h
+src/nosepiece.obj: ../src/ECAN.h
+src/nosepiece.obj: ../src/eeprom.h
+src/nosepiece.obj: ../src/eeprom_mmap.h
+src/nosepiece.obj: ../src/EPWM.h
+src/nosepiece.obj: ../src/EQEP.h
+src/nosepiece.obj: ../src/I2C.h
+src/nosepiece.obj: ../src/lightcontrol.h
+src/nosepiece.obj: ../src/LightManager.h
+src/nosepiece.obj: ../src/MainControl.h
+src/nosepiece.obj: ../src/monitoring.h
+src/nosepiece.obj: ../src/nosepiece.h
+src/nosepiece.obj: ../src/Parcenter.h
+src/nosepiece.obj: ../src/rltl.h
+src/nosepiece.obj: ../src/reflector.h
+src/nosepiece.obj: ../src/SCI.h
+src/nosepiece.obj: ../src/SPI.h
+src/nosepiece.obj: ../src/Timer.h
+src/nosepiece.obj: ../src/USB.h
+src/nosepiece.obj: ../src/XINT.h
+
+../src/nosepiece.c: 
+../src/include.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/math.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/linkage.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/_defs.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdbool.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdint.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdio.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdarg.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdlib.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/stdlibf.h: 
+C:/ti/ccsv7/tools/compiler/ti-cgt-c2000_16.9.1.LTS/include/string.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/inc/hw_ints.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/inc/hw_memmap.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/inc/hw_types.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/inc/hw_usb.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/debug.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/interrupt.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/rom.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/sysctl.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/systick.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/uart.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/usb.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/driverlib/usb_hal.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/usblib.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/usb-ids.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/device/usbdevice.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/device/usbdevicepriv.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/usblib/device/usbdbulk.h: 
+C:/ti/controlSUITE/device_support/f2806x/v151/MWare/utils/uartstdio.h: 
+../src/usb_bulk_structs.h: 
+C:/code/MCB/include/Flash2806x_API_Library.h: 
+C:/code/MCB/include/Flash2806x_API_Config.h: 
+C:/code/MCB/include/F2806x_Device.h: 
+C:/code/MCB/include/F2806x_Adc.h: 
+C:/code/MCB/include/F2806x_BootVars.h: 
+C:/code/MCB/include/F2806x_Cla.h: 
+C:/code/MCB/include/F2806x_Comp.h: 
+C:/code/MCB/include/F2806x_CpuTimers.h: 
+C:/code/MCB/include/F2806x_DevEmu.h: 
+C:/code/MCB/include/F2806x_Dma.h: 
+C:/code/MCB/include/F2806x_ECan.h: 
+C:/code/MCB/include/F2806x_ECap.h: 
+C:/code/MCB/include/F2806x_EPwm.h: 
+C:/code/MCB/include/F2806x_EQep.h: 
+C:/code/MCB/include/F2806x_Gpio.h: 
+C:/code/MCB/include/F2806x_HRCap.h: 
+C:/code/MCB/include/F2806x_I2c.h: 
+C:/code/MCB/include/F2806x_Mcbsp.h: 
+C:/code/MCB/include/F2806x_NmiIntrupt.h: 
+C:/code/MCB/include/F2806x_PieCtrl.h: 
+C:/code/MCB/include/F2806x_PieVect.h: 
+C:/code/MCB/include/F2806x_Spi.h: 
+C:/code/MCB/include/F2806x_Sci.h: 
+C:/code/MCB/include/F2806x_SysCtrl.h: 
+C:/code/MCB/include/F2806x_Usb.h: 
+C:/code/MCB/include/F2806x_XIntrupt.h: 
+../src/F2806x_Config.h: 
+C:/code/MCB/include/F2806x_GlobalPrototypes.h: 
+C:/code/MCB/include/F2806x_EPwm_defines.h: 
+C:/code/MCB/include/F2806x_I2c_defines.h: 
+C:/code/MCB/include/F2806x_Dma_defines.h: 
+C:/code/MCB/include/F2806x_Cla_defines.h: 
+C:/code/MCB/include/F2806x_DefaultISR.h: 
+../src/Adc.h: 
+../src/app.h: 
+../src/CAN29.h: 
+../src/TaskMgr.h: 
+../src/CmdHandler.h: 
+../src/Descriptor.h: 
+../src/Device_Init.h: 
+../src/ECAN.h: 
+../src/eeprom.h: 
+../src/eeprom_mmap.h: 
+../src/EPWM.h: 
+../src/EQEP.h: 
+../src/I2C.h: 
+../src/lightcontrol.h: 
+../src/LightManager.h: 
+../src/MainControl.h: 
+../src/monitoring.h: 
+../src/nosepiece.h: 
+../src/Parcenter.h: 
+../src/rltl.h: 
+../src/reflector.h: 
+../src/SCI.h: 
+../src/SPI.h: 
+../src/Timer.h: 
+../src/USB.h: 
+../src/XINT.h: 

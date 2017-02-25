@@ -1,0 +1,481 @@
+/*
+ * lightcontrol.c
+ *
+ *  Created on: 2016Äê12ÔÂ20ÈÕ
+ *      Author: zcleicai
+ */
+
+#include "include.h"
+#include "maincontrol.h"
+#include "lightcontrol.h"
+#include "usb.h"
+#include "can29.h"
+
+static Uint16 lightctrlVelocity = 0;
+
+void LightctrlExec(void)
+{
+	static Uint32 time;
+	tLightSource *pLightSource;
+	Int16 intensity;
+	
+	if (GetSysTick0() - time > SEC1) {
+		if (g_Device.RLTLSw.Sw == LSW_UPPER)
+			pLightSource = (void *)&g_Device.ULight;
+		else if (g_Device.RLTLSw.Sw == LSW_LOWER)
+			pLightSource = (void *)&g_Device.LLight;
+		else	// should not come here
+	 		return;
+		if (lightctrlVelocity != 0) {
+			intensity = pLightSource->Intensity_I;
+			intensity += lightctrlVelocity;
+			intensity = intensity > MAX_POSITIONS_LIGHTCTRL ? MAX_POSITIONS_LIGHTCTRL : intensity;
+			intensity = intensity < 0 ? 0 : intensity;
+			pLightSource->Intensity_I = intensity;
+		}
+		time = GetSysTick0();
+	}		
+}
+
+void AnswerBios_Lightctrl(uint8_t *pFrame)
+{
+	UsbTxTask usbtx;
+	uint8_t i, usbtxmsg[USBFRAME_MAXLEN];
+	uint8_t string_len;
+
+	usbtxmsg[0] = 0x10;
+	usbtxmsg[1] = 0x02;
+	GetByte(usbtxmsg, USBIDX_TARGET) = GetByte(pFrame, USBIDX_SRC);
+	GetByte(usbtxmsg, USBIDX_SRC) = CANNODE_LIGHTCTRL;
+	GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+	GetByte(usbtxmsg, USBIDX_CMDNUM) = GetByte(pFrame, USBIDX_CMDNUM);
+	GetByte(usbtxmsg, USBIDX_PID) = GetByte(pFrame, USBIDX_PID);
+	GetByte(usbtxmsg, USBIDX_SUBID) = GetByte(pFrame, USBIDX_SUBID);
+	if (GetByte(usbtxmsg, USBIDX_SUBID) == FIND_CAN_ADDR) {
+		GetByte(usbtxmsg, USBIDX_BIOS_PAYLOAD) = CANNODE_LIGHTCTRL;
+		i = 1;
+		string_len = 1;
+	}else {
+		switch (GetByte(pFrame, USBIDX_SUBID)) {
+			case 0x05:
+			case 0x07:   // app version
+				string_len = strlen(AppVersion);
+				for (i=0; i<string_len; i++) {
+					GetByte(usbtxmsg, USBIDX_BIOS_PAYLOAD + i) = *(AppVersion+i);
+				}
+				break;
+			case 0x06:
+			case 0x08:
+				string_len = strlen(AppDate);
+				for (i=0; i<string_len; i++) {
+					GetByte(usbtxmsg, USBIDX_BIOS_PAYLOAD + i) = *(AppDate+i);
+				}
+				break;
+			case 0x0a:
+			case 0x09:
+				string_len = strlen(AppName_Lightctrl);
+				for (i=0; i<string_len; i++) {
+					GetByte(usbtxmsg, USBIDX_BIOS_PAYLOAD + i) = *(AppName_Lightctrl +i);
+				}
+				break;
+
+			default : 
+				return;
+		}
+	}
+	GetByte(usbtxmsg, USBIDX_BIOS_PAYLOAD + i++) = 0x10;
+	GetByte(usbtxmsg, USBIDX_BIOS_PAYLOAD + i++) = 0x03;
+	usbtx.Len = string_len + CAN29_BIOS_OVERHEAD + USB_PKT_OVERHEAD;  
+	GetByte(usbtxmsg, USBIDX_LEN) = string_len + CAN29_BIOS_OVERHEAD; 
+	usbtx.pBuf = usbtxmsg;
+	StartUsbTxTask(&usbtx);
+}
+
+void servoHandler_Lightctrl(uint8_t *pFrame) {
+	UsbTxTask usbtx;
+	Uint8 usbtxmsg[USBFRAME_MAXLEN];
+	Uint8 dataLen;
+	tLightSource *pLightSource;
+	Int16 targetPos;
+	Int16 relPos;
+	Int16 cmdVelocity;
+	tMonClient clientLightctrl;
+
+	if (g_Device.RLTLSw.Sw == LSW_UPPER)
+		pLightSource = (void *)&g_Device.ULight;
+	else if (g_Device.RLTLSw.Sw == LSW_LOWER)
+		pLightSource = (void *)&g_Device.LLight;
+	else	// should not come here
+	 	return;
+
+	if (GetByte(pFrame, USBIDX_DEVID) != 0)					// only has one dev with ID 0
+	 	return;
+ 
+	usbtxmsg[0] = 0x10;
+	usbtxmsg[1] = 0x02;
+	GetByte(usbtxmsg, USBIDX_TARGET) = GetByte(pFrame, USBIDX_SRC);
+	GetByte(usbtxmsg, USBIDX_SRC) = CANNODE_LIGHTCTRL;
+	GetByte(usbtxmsg, USBIDX_CMDNUM) = GetByte(pFrame, USBIDX_CMDNUM);
+	GetByte(usbtxmsg, USBIDX_PID) = GetByte(pFrame, USBIDX_PID);
+	GetByte(usbtxmsg, USBIDX_SUBID) = GetByte(pFrame, USBIDX_SUBID);
+	GetByte(usbtxmsg, USBIDX_DEVID) = GetByte(pFrame, USBIDX_DEVID);   	
+ 
+	switch (GetByte(pFrame, USBIDX_SUBID)) {
+		case 0x00:   // init device
+			if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B) {
+				// todo: init device
+				return;
+			} else if (GetByte(pFrame, USBIDX_CMDCL) == 0x19) {
+						// todo: init device
+				 dataLen = 2;
+				 GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+				 GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+				 GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				 break;
+		 	} else
+				return;
+			 
+		case 0x01:   // read device status
+			if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+				dataLen = 2;
+				GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->status & 0xff00) >> 8;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->status & 0xff;
+				break;
+			} else
+				return;
+ 
+		case 0x02:  // move absolute
+			if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B || GetByte(pFrame, USBIDX_CMDCL) == 0x19) {
+				targetPos = (GetByte(pFrame, USBIDX_PAYLOAD) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 1);
+				if (pLightSource->Lock.Status == true) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+				 	GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_DEV_LOCKED & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_DEV_LOCKED & 0xff;
+				} else if (targetPos > MAX_POSITIONS_LIGHTCTRL) {
+				 	dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+				 	GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_INVALID_PARAM & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_INVALID_PARAM & 0xff;
+				} else {
+					pLightSource->Intensity_I = (GetByte(pFrame, USBIDX_PAYLOAD) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 1);
+					pLightSource->Intensity = pLightSource->Intensity_I;
+					if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B)
+						return;
+					dataLen = 2;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				 }
+				 break;
+		 	} else if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+		 		dataLen = 2;
+				GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				break;
+		 	} else
+		 		return;
+			 	
+		case 0x12:  // move absolute locked
+			if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B || GetByte(pFrame, USBIDX_CMDCL) == 0x19) {
+				targetPos = (GetByte(pFrame, USBIDX_PAYLOAD) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 1);
+				if (pLightSource->Lock.Status == false) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_DEV_NOT_LOCKED & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_DEV_NOT_LOCKED & 0xff;
+				} else if (targetPos > MAX_POSITIONS_LIGHTCTRL) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_INVALID_PARAM & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_INVALID_PARAM & 0xff;
+				  } else {
+					pLightSource->Intensity_I = (GetByte(pFrame, USBIDX_PAYLOAD) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 1);
+					pLightSource->Intensity = pLightSource->Intensity_I;
+					if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B)
+						return;
+					dataLen = 2;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				  }
+				  break;
+			 } else if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+				 dataLen = 2;
+				 GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+				 GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+				 GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				 break;
+			 } else
+				 return;
+		
+		case 0x03:	// move relative
+			if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B || GetByte(pFrame, USBIDX_CMDCL) == 0x19) {
+				relPos = (GetByte(pFrame, USBIDX_PAYLOAD) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 1);
+				targetPos = pLightSource->Intensity_I + relPos;
+				targetPos = targetPos > MAX_POSITIONS_LIGHTCTRL ? MAX_POSITIONS_LIGHTCTRL : targetPos;
+				targetPos = targetPos < 0 ? 0 : targetPos;
+				 if (pLightSource->Lock.Status == true) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_DEV_LOCKED & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_DEV_LOCKED & 0xff;
+				 } else if (targetPos > MAX_POSITIONS_LIGHTCTRL) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_INVALID_PARAM & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_INVALID_PARAM & 0xff;
+				 } else {
+				 	pLightSource->Intensity_I = targetPos;
+					pLightSource->Intensity = pLightSource->Intensity_I;
+					if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B)
+						return;
+					dataLen = 2;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				 }
+				 break;
+			} else if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+				dataLen = 2;
+				GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				break;
+			} else
+				return;
+						
+		case 0x13:  // move relative locked
+			if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B || GetByte(pFrame, USBIDX_CMDCL) == 0x19) {
+				relPos = (GetByte(pFrame, USBIDX_PAYLOAD) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 1);
+				targetPos = pLightSource->Intensity_I + relPos;
+				targetPos = targetPos > MAX_POSITIONS_LIGHTCTRL ? MAX_POSITIONS_LIGHTCTRL : targetPos;
+				targetPos = targetPos < 0 ? 0 : targetPos;
+
+				if (pLightSource->Lock.Status == false) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_DEV_NOT_LOCKED & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_DEV_NOT_LOCKED & 0xff;
+				} else if (targetPos > MAX_POSITIONS_LIGHTCTRL) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_INVALID_PARAM & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_INVALID_PARAM & 0xff;
+				} else {
+					pLightSource->Intensity_I = targetPos;
+					pLightSource->Intensity = pLightSource->Intensity_I;
+					if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B)
+						return;
+					dataLen = 2;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				}
+				break;
+			} else if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+				dataLen = 2;
+				GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+				break;
+			} else
+				return;
+
+		 case 0x04:  // set velocity move
+			 if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B || GetByte(pFrame, USBIDX_CMDCL) == 0x19) {
+				cmdVelocity = (GetByte(pFrame, USBIDX_PAYLOAD) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 1);
+				if (pLightSource->Lock.Status == true) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (lightctrlVelocity & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = lightctrlVelocity & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_DEV_LOCKED & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_DEV_LOCKED & 0xff;
+				} else if (lightctrlVelocity > MAX_SPEED_LIGHTCTRL) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (lightctrlVelocity & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = lightctrlVelocity & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_INVALID_PARAM & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_INVALID_PARAM & 0xff;
+				} else {
+					lightctrlVelocity = cmdVelocity;
+					if (lightctrlVelocity == 0) {
+						pLightSource->status &= ~(1 << SVO_BIT_MOVING);
+						pLightSource->status |= (1 << SVO_BIT_VALID_POS);
+					} else {
+						pLightSource->status |= (1 << SVO_BIT_MOVING);
+						pLightSource->status &= ~(1 << SVO_BIT_VALID_POS);
+					}		
+					if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B)
+						return;
+					dataLen = 2;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (lightctrlVelocity & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = lightctrlVelocity & 0xff;
+				}
+				break;
+			 } else if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+				 dataLen = 2;
+				 GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+				 GetByte(usbtxmsg, USBIDX_PAYLOAD) = (lightctrlVelocity & 0xff00) >> 8;
+				 GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = lightctrlVelocity & 0xff;
+				 break;
+			 } else
+				 return;
+						 
+		 case 0x14:  // set velocity move (locked)
+			 if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B || GetByte(pFrame, USBIDX_CMDCL) == 0x19) {
+				cmdVelocity = (GetByte(pFrame, USBIDX_PAYLOAD) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 1);
+				if (pLightSource->Lock.Status != true) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (lightctrlVelocity & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = lightctrlVelocity & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_DEV_NOT_LOCKED & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_DEV_NOT_LOCKED & 0xff;
+				} else if (lightctrlVelocity > MAX_SPEED_LIGHTCTRL) {
+					dataLen = 4;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (lightctrlVelocity & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = lightctrlVelocity & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_INVALID_PARAM & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_INVALID_PARAM & 0xff;
+				} else {
+					lightctrlVelocity = cmdVelocity;
+					if (lightctrlVelocity == 0) {
+						pLightSource->status &= ~(1 << SVO_BIT_MOVING);
+						pLightSource->status |= (1 << SVO_BIT_VALID_POS);
+					} else {
+						pLightSource->status |= (1 << SVO_BIT_MOVING);
+						pLightSource->status &= ~(1 << SVO_BIT_VALID_POS);
+					}		
+					if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B)
+						return;
+					dataLen = 2;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = (lightctrlVelocity & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = lightctrlVelocity & 0xff;
+				}
+				break;
+			 } else if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+				 dataLen = 2;
+				 GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+				 GetByte(usbtxmsg, USBIDX_PAYLOAD) = (lightctrlVelocity & 0xff00) >> 8;
+				 GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = lightctrlVelocity & 0xff;
+				 break;
+			 } else
+				 return;
+			
+		 case 0x05:  // stop device
+			 dataLen = 4;
+			 lightctrlVelocity = 0;
+			 pLightSource->status &= ~(1 << SVO_BIT_MOVING);
+			 pLightSource->status |= (1 << SVO_BIT_VALID_POS);
+			 GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+			 GetByte(usbtxmsg, USBIDX_PAYLOAD) = (pLightSource->Intensity_I & 0xff00) >> 8;
+			 GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = pLightSource->Intensity_I & 0xff;
+			 GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = (ERR_CMD_NOT_IMPLEMENTED & 0xff00) >> 8;
+			 GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = ERR_CMD_NOT_IMPLEMENTED & 0xff;
+			 break;
+ 
+		 case 0x08:  // read number of positions
+			 dataLen = 2;
+			 GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+			 GetByte(usbtxmsg, USBIDX_PAYLOAD) = (MAX_POSITIONS_LIGHTCTRL & 0xff00) >> 8;;
+			 GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = MAX_POSITIONS_LIGHTCTRL & 0xff;
+			 break;
+ 
+		 case 0x61:  // lock / unlock device
+			if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B || GetByte(pFrame, USBIDX_CMDCL) == 0x19) {
+				pLightSource->Lock.Status = (GetByte(pFrame, USBIDX_PAYLOAD) != 0) ? true : false;
+				pLightSource->Lock.StartTime = GetSysTick0();
+				if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B)
+					return;
+				dataLen = 1;
+				GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD) = pLightSource->Lock.Status;
+				break;
+		    } else if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+		     	dataLen = 1;
+				GetByte(usbtxmsg, USBIDX_CMDCL) = 0x08;
+				GetByte(usbtxmsg, USBIDX_PAYLOAD) = pLightSource->Lock.Status;
+		     	break;
+			} else
+				return;
+ 		case 0x1f:	// monitor
+			if (GetByte(pFrame, USBIDX_CMDCL) == 0x19 || GetByte(pFrame, USBIDX_CMDCL) == 0x1B) {
+				clientLightctrl.devId = GetByte(pFrame, USBIDX_DEVID);
+				clientLightctrl.mode = GetByte(pFrame, USBIDX_PAYLOAD);
+				clientLightctrl.interval = (GetByte(pFrame, USBIDX_PAYLOAD + 1) << 8) + GetByte(pFrame, USBIDX_PAYLOAD + 2);
+				clientLightctrl.address = GetByte(pFrame, USBIDX_PAYLOAD + 3);
+				clientLightctrl.pid = GetByte(pFrame, USBIDX_PAYLOAD + 4);
+				if (!isValidMode(clientLightctrl.mode) || clientLightctrl.address == 0) {
+					dataLen = 7;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = clientLightctrl.mode;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = (clientLightctrl.interval & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = clientLightctrl.interval & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = clientLightctrl.address;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 4) = clientLightctrl.pid;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 5) = (ERR_INVALID_PARAM & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 6) = ERR_INVALID_PARAM & 0xff;
+				 } else {
+					if (clientLightctrl.mode > 0) {
+						if (addMonClient(eMON_LIGHTCTRL, &clientLightctrl) == false)
+							return; 	// todo: add error message here
+					} else {
+						if (delMonClient(eMON_LIGHTCTRL, &clientLightctrl) == false)
+							return;
+					}
+					if (GetByte(pFrame, USBIDX_CMDCL) == 0x1B)
+						return;
+					dataLen = 5;
+					GetByte(usbtxmsg, USBIDX_CMDCL) = 0x09;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD) = clientLightctrl.mode;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 1) = (clientLightctrl.interval & 0xff00) >> 8;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 2) = clientLightctrl.interval & 0xff;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 3) = clientLightctrl.address;
+					GetByte(usbtxmsg, USBIDX_PAYLOAD + 4) = clientLightctrl.pid;
+				}
+				break;
+			} else if (GetByte(pFrame, USBIDX_CMDCL) == 0x15) {
+			    usbGetClient(eMON_LIGHTCTRL, pFrame, eMON_MODE_MULTI);
+                    return;
+                } else if (GetByte(pFrame, USBIDX_CMDCL) == 0x18) {
+                    usbGetClient(eMON_LIGHTCTRL, pFrame, eMON_MODE_LEGACY);
+				return;
+			} else
+				return;
+		default : 
+			return;
+	 }
+ 
+	GetByte(usbtxmsg, USBIDX_PAYLOAD + dataLen) = 0x10;
+	GetByte(usbtxmsg, USBIDX_PAYLOAD + dataLen + 1) = 0x03;
+	usbtx.Len = dataLen + CAN29_OVERHEAD + USB_PKT_OVERHEAD;
+	GetByte(usbtxmsg, USBIDX_LEN) = dataLen + CAN29_OVERHEAD; 
+	usbtx.pBuf = usbtxmsg;
+	StartUsbTxTask(&usbtx);
+}
+
+

@@ -1,0 +1,273 @@
+/*
+ * CAN29.c
+ *
+ *  Created on: 2016?6?7?
+ *      Author: ZCTIAXIA
+ */
+
+#include "include.h"
+
+Task TaskNode[MAX_TASK_NUM];
+tSemiphore Sem[MAX_PID];
+uint8_t g_pid = 1;
+static Task *p_RootIdle;
+static Task *p_Active;
+uint8_t Pid[MAX_PID-1];
+
+static void
+Pid_Init(void)
+{
+	uint8_t i;
+	for (i=1; i < MAX_PID; i++) {
+		Pid[i-1] = 0;
+	}
+}
+
+uint8_t
+GetPid(void)
+{
+	// DINT;
+    uint8_t i = 1;
+	do {
+		if (!Pid[i-1]) {
+			Pid[i-1] = 1;
+			return i;
+		}
+		i++;
+	}while (i <= MAX_PID);
+	return NULL;
+	// EINT;
+}
+
+void
+FreePid(uint8_t Num)
+{
+	Pid[Num-1] = 0;
+}
+
+static void
+Sem_Init(void)
+{
+	uint8_t i = 0;
+	for (i=0; i <= MAX_PID; i++) {
+		//Sem init
+		Sem[i].Index = i;
+		Sem[i].Pid = 0;
+		Sem[i].Used = false;
+		Sem[i].Filled = false;
+		Sem[i].Value = 0;
+		Sem[i].pBuf = NULL;
+	}
+}
+
+tSemiphore *
+CreateSem(void)
+{
+	// DINT;
+    uint8_t i;
+	for (i=0; i< MAX_TASK_NUM; i++) {
+		if (!Sem[i].Used) {
+			Sem[i].Used = true;
+			return &Sem[i];
+		}
+	}
+	return NULL;
+	// EINT;
+}
+
+void
+FreeSem(uint8_t index)
+{
+	// DINT;
+    if (index < MAX_TASK_NUM && (int16)index >= 0) {
+		Sem[index].Used = false;
+		Sem[index].Filled = false;
+		Sem[index].Value = 0;
+		Sem[index].Pid = 0;
+		if (Sem[index].pBuf) {
+			free(Sem[index].pBuf);
+		}
+		Sem[index].pBuf = NULL;
+	}
+    // EINT;
+}
+
+uint8_t
+FindSem(uint8_t pid)
+{
+    uint8_t i;
+	for (i=0; i< MAX_TASK_NUM; i++) {
+		if (!Sem[i].Pid == pid && Sem[i].Used)
+			return Sem[i].Index;
+	}
+	return NULL;
+}
+
+void
+TaskListInit(void)
+{
+	uint8_t i;
+
+	Pid_Init();
+	Sem_Init();
+
+	for (i=0; i<MAX_TASK_NUM; i++) {
+		TaskNode[i].Name = NOTASK;
+		TaskNode[i].Status = TASKSTS_IDLE;
+		TaskNode[i].Self = &TaskNode[i];
+		TaskNode[i].pfn = NULL;
+		TaskNode[i].pTaskObj = NULL;
+	}
+
+	// node 1~9
+	for (i=1; i<MAX_TASK_NUM-1; i++) {
+		TaskNode[i].link = &TaskNode[i+1];
+	}
+
+	// node 10
+	TaskNode[MAX_TASK_NUM-1].link = &TaskNode[1];
+
+	// node0
+	TaskNode[0].link = &TaskNode[0];
+	TaskNode[0].pfn = (uint8_t (*)(void*))MainControl;
+	TaskNode[0].Name = MainCtrl;
+	TaskNode[0].Status = TASKSTS_ONGOING;
+
+	p_RootIdle = &TaskNode[1];
+	p_Active = &TaskNode[0];
+}
+
+_Bool
+Compare_Name(void const *p, void const *value)
+{
+	if (((Task*)p)->Name == *(enum TASKNAME*)value)
+		return true;
+	else
+		return false;
+}
+
+_Bool
+Compare_pfn(void const *p, void const *value)
+{
+	if ( ((Task*)p)->pfn == (uint8_t(*)(void *))value )
+		return true;
+	else
+		return false;
+}
+
+Task *
+SearchNode(Task *header, void const *value, bool (*compare)(void const *, void const *))
+{
+	Task *p;
+
+	p = header;
+	do {
+		if (compare(p, value) == true)
+			return p;
+		p = p->link;
+	} while (p != header);
+
+	return NULL;
+}
+
+Task *
+FindLastNode(Task *header, Task *link)  // give an address
+{
+	Task *p;
+
+	p = header;
+	do {
+		if (p->link == link)
+			return p;
+		p = p->link;
+	} while (p != header);
+
+	return false;
+}
+
+void
+ResetTaskNode(Task *p_Task)
+{
+	p_Task->Name = NOTASK;
+	p_Task->Status = TASKSTS_IDLE;
+	p_Task->pTaskObj = NULL;
+	p_Task->pfn = NULL;
+}
+
+Task *
+CreateTask(Uint16 level)
+{
+	// DINT;
+    if (p_RootIdle == NULL)
+		return false;
+
+	Task *p_LastTask, *p_LastIdle;
+
+	p_LastTask = FindLastNode(&TaskNode[0], &TaskNode[0]);
+	if (p_LastTask == 0)
+		return false;
+	p_LastIdle = FindLastNode(p_RootIdle, p_RootIdle);
+	if (p_LastIdle == 0)
+		return false;
+
+	p_LastIdle->link = (p_RootIdle == p_RootIdle->link) ? 0 : p_RootIdle->link;
+
+	if (level == PRIOR) {
+		p_RootIdle->link = TaskNode[0].link;
+		TaskNode[0].link = p_RootIdle;
+		p_RootIdle = p_LastIdle->link;
+		return TaskNode[0].link;
+	}else {
+		p_RootIdle->link = &TaskNode[0];
+		p_LastTask->link = p_RootIdle;
+		p_RootIdle = p_LastIdle->link;
+		return p_LastTask->link;
+	}
+	// EINT;
+}
+
+_Bool
+DeleteTask(Task *p_Task)
+{
+	// DINT;
+    Task *p_LastTask, *p_LastIdle;
+
+	p_LastTask = FindLastNode(&TaskNode[0], p_Task);
+	if (p_LastTask == NULL)
+		return false;
+	if (p_Task == &TaskNode[0])
+		return false;
+
+	ResetTaskNode(p_Task);
+
+	if (p_RootIdle != 0) {
+		p_LastIdle = FindLastNode(p_RootIdle, p_RootIdle);
+		if (p_LastIdle == NULL)
+			return false;
+		p_LastTask->link = p_Task->link;
+		p_Task->link = p_RootIdle;
+		p_RootIdle = p_Task;
+		p_LastIdle->link = p_Task;
+	}else {
+		p_LastTask->link = p_Task->link;
+		p_RootIdle = p_Task;
+		p_Task->link = p_Task;
+	}
+
+	return true;
+	// EINT;
+}
+
+void
+TaskPoll(void)
+{
+	Task *p_current;
+	TASKSTATUS ret;
+	p_current = p_Active;
+	ret = (*(p_Active->pfn))(p_Active->pTaskObj);
+	if (ret == TASKSTS_FINISH || ret == TASKSTS_WRONG || ret == TASKSTS_TIMEOUT) {
+		p_Active = p_Active->link;
+		DeleteTask(p_current);
+	}else
+		p_Active = p_Active->link;
+}

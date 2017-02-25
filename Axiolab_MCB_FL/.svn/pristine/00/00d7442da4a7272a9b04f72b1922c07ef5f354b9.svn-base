@@ -1,0 +1,593 @@
+/*
+ * Device_Init.c
+ *
+ *  Created on: 2016.5.27
+ *      Author: xiatian
+ */
+
+#include "include.h"
+
+
+#pragma CODE_SECTION(InitFlash, "ramfuncs");
+#define Device_cal (void   (*)(void))0x3D7C80
+
+void GPIO_Init(void);
+
+void DisableDog(void)
+{
+    EALLOW;
+    SysCtrlRegs.WDCR= 0x0068;
+    EDIS;
+}
+
+void InitPll(Uint16 val, Uint16 divsel)
+{
+    EALLOW;
+    while(SysCtrlRegs.PLLSTS.bit.MCLKSTS);
+    SysCtrlRegs.PLLSTS.bit.DIVSEL = 0;
+    SysCtrlRegs.PLLSTS.bit.MCLKOFF = 1;
+    SysCtrlRegs.PLLCR.bit.DIV = val;
+    while(!SysCtrlRegs.PLLSTS.bit.PLLLOCKS);
+    SysCtrlRegs.PLLSTS.bit.MCLKOFF = 0;
+    SysCtrlRegs.PLLSTS.bit.DIVSEL = divsel;
+
+    SysCtrlRegs.PLL2CTL.bit.PLL2CLKSRCSEL = 2;
+    SysCtrlRegs.PLL2CTL.bit.PLL2EN = 1;
+    SysCtrlRegs.PLL2MULT.bit.PLL2MULT = 6;
+    while(!SysCtrlRegs.PLL2STS.bit.PLL2LOCKS);
+    EDIS;
+}
+
+interrupt void ISR_ILLEGAL(void)
+{
+    asm("          ESTOP0");
+    for(;;);
+}
+
+void InitFlash(void)
+{
+    EALLOW;
+
+    FlashRegs.FOPT.bit.ENPIPE = 1;
+
+    FlashRegs.FBANKWAIT.bit.PAGEWAIT = 2;
+    FlashRegs.FBANKWAIT.bit.RANDWAIT = 2;
+    FlashRegs.FOTPWAIT.bit.OTPWAIT = 3;
+    FlashRegs.FSTDBYWAIT.bit.STDBYWAIT = 0x01FF;
+    FlashRegs.FACTIVEWAIT.bit.ACTIVEWAIT = 0x01FF;
+    EDIS;
+
+    __asm(" RPT #7 || NOP");
+}
+
+void
+MemCopy(Uint16 *SourceAddr, Uint16* SourceEndAddr, Uint16* DestAddr)
+{
+    while(SourceAddr < SourceEndAddr)
+    {
+        *DestAddr++ = *SourceAddr++;
+    }
+    return;
+}
+
+void InitPeripheralClocks(void)
+{
+    EALLOW;
+    SysCtrlRegs.LOSPCP.all = 0x0002;     // Low-Speed Peripheral Clock Prescaler Register (LOSPCP). Low speed clock= SYSCLKOUT/4 (reset default)
+    SysCtrlRegs.XCLK.bit.XCLKOUTDIV=2;   // Clocking (XCLK), 2: XCLKOUT = SYSCLKOUT
+    SysCtrlRegs.PCLKCR3.bit.USB0ENCLK = 1;
+    SysCtrlRegs.PCLKCR0.bit.ECANAENCLK= 1;
+    SysCtrlRegs.PCLKCR0.bit.SPIAENCLK = 1;
+    SysCtrlRegs.PCLKCR0.bit.SPIBENCLK = 1;
+    SysCtrlRegs.PCLKCR0.bit.I2CAENCLK = 1;
+    SysCtrlRegs.PCLKCR1.bit.EQEP1ENCLK = 1;
+    SysCtrlRegs.PCLKCR1.bit.EPWM1ENCLK = 1;
+    SysCtrlRegs.PCLKCR1.bit.EPWM2ENCLK = 1;
+    SysCtrlRegs.PCLKCR1.bit.EPWM4ENCLK = 1;
+    SysCtrlRegs.PCLKCR1.bit.EPWM6ENCLK = 1;
+    //Enable USB Clock
+    SysCtrlRegs.PCLKCR3.bit.USB0ENCLK = 1;
+    EDIS;
+}
+
+void DisablePeripherals(void)
+{
+    SysCtlPeripheralDisable(SYSCTL_PERIPH_USB0);
+    SysCtlPeripheralDisable(SYSCTL_PERIPH_SPI0);
+    SysCtlPeripheralDisable(SYSCTL_PERIPH_SPI1);
+    SysCtrlRegs.PCLKCR0.bit.I2CAENCLK = 0;
+    EALLOW;
+    SysCtrlRegs.PCLKCR0.bit.ECANAENCLK= 0;
+    SysCtrlRegs.PCLKCR1.bit.EQEP1ENCLK = 0;
+    SysCtrlRegs.PCLKCR1.bit.EPWM1ENCLK = 0;
+    SysCtrlRegs.PCLKCR1.bit.EPWM2ENCLK = 0;
+    SysCtrlRegs.PCLKCR1.bit.EPWM4ENCLK = 0;
+    SysCtrlRegs.PCLKCR1.bit.EPWM6ENCLK = 0;
+    EDIS;
+    StopCpuTimer0();
+    StopCpuTimer1();
+    StopCpuTimer2();
+}
+
+void XtalOscSel (void)
+{
+     EALLOW;
+     SysCtrlRegs.CLKCTL.bit.XCLKINOFF = 1;
+     SysCtrlRegs.CLKCTL.bit.XTALOSCOFF = 0;
+     SysCtrlRegs.CLKCTL.bit.OSCCLKSRC2SEL = 0;
+     SysCtrlRegs.CLKCTL.bit.OSCCLKSRCSEL = 1;
+     EDIS;
+}
+
+void Device_Init(void)
+{
+    EALLOW;
+    SysCtrlRegs.PCLKCR0.bit.ADCENCLK = 1;
+    (*Device_cal)();
+    SysCtrlRegs.PCLKCR0.bit.ADCENCLK = 0;
+    EDIS;
+
+    //Setup Clock
+    //20MHz ->PLL->90MHz->C28
+    //      ->PLL2->120MHz->USB
+    XtalOscSel();
+
+    InitPll(DSP28_PLLCR, DSP28_DIVSEL);
+    InitPeripheralClocks();
+
+    GPIO_Init();
+}
+
+void SystemInit(void)
+{
+    C29ID c29id;
+    uint8_t payload[8] = {0};
+
+    HardwareInit();
+
+    //upper light initial
+    g_Device.ULight.Intensity = 1;
+    g_Device.ULight.Intensity_I = 1;
+    g_Device.ULight.status = 0x0a17;
+    //lower light initial
+    g_Device.LLight.Intensity = 1;
+    g_Device.LLight.Intensity_I = 1;
+    g_Device.ULight.status = 0x0a17;
+    //colibri
+    g_Device.Colibri.Settled = false;
+    //dazzle protection
+    g_Device.DazzleProtect = true;
+    //HAL100 initial
+    g_Device.HAL100.Settled = false;
+    //keys initial
+    g_Device.Keys.KnobValue = 0;
+    g_Device.Keys.RLTLStatus = sts00;
+    g_Device.Keys.LmSnap = sts00;
+    //RLTL switch initial
+    if (g_Device.Serie == Axiolab && g_Device.VarType == VAR_Bio) {
+        g_Device.RLTLSw.Sw = LSW_LOWER;
+        UGreenOn();  // for indicator board share with vario, only one LED always on, and no rltl button.
+    }else if (g_Device.VarType == VAR_Vario) {
+        g_Device.RLTLSw.Sw = LSW_UPPER;
+        UGreenOn();
+    }else {
+        g_Device.RLTLSw.Sw = LSW_UPPER;
+        UGreenOn();
+    }
+    g_Device.RLTLSw.Lock.Status = false;
+    g_Device.RLTLSw.status = 0x0117;
+    //lampled initial
+    g_Device.LampLed.LampMode = true;
+    g_Device.LampLed.pLed = &g_Device.ULight;
+    g_Device.LampLed.Lock.Status = false;
+    //lightmanager initial
+    g_Device.LM.Enable = true;
+    g_Device.LM.LRatio = 0xffff;
+    g_Device.LM.URatio = 0xffff;
+    //lockmask initial
+    g_Device.LockMask = 0;
+    //mode
+    g_Device.Mode = NORM;
+    // dodge
+    g_Device.dodge_z= false;
+    //motor x,y,z part initial
+    g_Device.MotorX.Settled = false;
+    g_Device.MotorY.Settled = false;
+    g_Device.MotorZ.Settled = false;
+    g_Device.MotorX.moving = false;
+    g_Device.MotorY.moving = false;
+    g_Device.MotorZ.moving = false;
+    g_Device.MotorX.Position = 0;
+    g_Device.MotorY.Position = 0;
+    g_Device.MotorZ.Position = 0;
+    g_Device.MotorX.PrevParIndex = Position0;
+    g_Device.MotorY.PrevParIndex = Position0;
+    g_Device.MotorZ.PrevParIndex = Position0;
+    g_Device.MotorX.PosPrevPar = 0;
+    g_Device.MotorY.PosPrevPar = 0;
+    g_Device.MotorZ.PosPrevPar = 0;
+    g_Device.MotorX.Lock.Status = false;
+    g_Device.MotorY.Lock.Status = false;
+    g_Device.MotorZ.Lock.Status = false;
+    g_Device.MotorX.SoftLimit = 0;
+    g_Device.MotorY.SoftLimit = 0;
+    g_Device.MotorZ.SoftLimit = 0;
+//  g_Device.MotorX.Parcenter = -1;
+//  g_Device.MotorY.Parcenter = -1;
+//  g_Device.MotorZ.Parcenter = -1;
+//  g_Device.NosePiece.status = 0x0203; // device exists | device encoded | device initialized
+//  g_Device.Reflector.status = 0x0203;
+    g_Device.NosePiece.status = 0x0207; // to pretend they're motorized
+    g_Device.Reflector.status = 0x0207;
+
+    //indicator initial
+    g_Device.Indc.BlinkColour = IND_NONE;
+    g_Device.Indc.RequireColour = IND_NONE;
+    g_Device.Indc.IndSts = Indsts_Norm;
+
+    //key initial
+    g_Device.Keys.StartTime_single_snap = GetSysTick0();    // leilc add for double click
+
+    //descriptor init
+    DescInitRead(DESC_RFLM, 0x10, RLMatrix, 42, DESCFMT_USHORT);
+    DescInitRead(DESC_TMLM, 0x10, TLMatrix, 6, DESCFMT_USHORT);
+    DescInitRead(DESC_XYZ, 0x41, PcTable.Z, 6, DESCFMT_LONG);
+    DescInitRead(DESC_XYZ, 0x91, PcTable.X, 6, DESCFMT_LONG);
+    DescInitRead(DESC_XYZ, 0xA1, PcTable.Y, 6, DESCFMT_LONG);
+
+    DescInitRead(DESC_ELEMENTS_NP, 0x12, &np_mag[0], 1, DESCFMT_FLOAT);
+    DescInitRead(DESC_ELEMENTS_NP, 0x22, &np_mag[1], 1, DESCFMT_FLOAT);
+    DescInitRead(DESC_ELEMENTS_NP, 0x32, &np_mag[2], 1, DESCFMT_FLOAT);
+    DescInitRead(DESC_ELEMENTS_NP, 0x42, &np_mag[3], 1, DESCFMT_FLOAT);
+    DescInitRead(DESC_ELEMENTS_NP, 0x52, &np_mag[4], 1, DESCFMT_FLOAT);
+    DescInitRead(DESC_ELEMENTS_NP, 0x62, &np_mag[5], 1, DESCFMT_FLOAT);
+
+    Reset_gDeviceShadow();
+
+    //book event of focus-z stable position
+    c29id.all = 0x1B0f195f;
+    payload[0] = 0x01; //pid
+    payload[1] = 0x1f; //subid
+    payload[2] = 0; //devid
+    payload[3] = 0x03; //mode
+    payload[4] = 0x00; //interval_h
+    payload[5] = 0xf0; //interval_l
+    payload[6] = CANNODE_MCB; //address
+    payload[7] = 0x01; //pid
+    StartECanTxTask(c29id, payload, 8, 30);
+    //book event of motor-x stable position
+    c29id.all = 0x1B26195f;
+    payload[0] = 0x01; //pid
+    payload[1] = 0x1f; //subid
+    payload[2] = 0; //devid
+    payload[3] = 0x03; //mode
+    payload[4] = 0x00; //interval_h
+    payload[5] = 0x00; //interval_l
+    payload[6] = CANNODE_MCB; //address
+    payload[7] = 0x01; //pid
+    StartECanTxTask(c29id, payload, 8, 30);
+    //book event of motor-y stable position
+    c29id.all = 0x1B27195f;
+    payload[0] = 0x01; //pid
+    payload[1] = 0x1f; //subid
+    payload[2] = 0; //devid
+    payload[3] = 0x03; //mode
+    payload[4] = 0x00; //interval_h
+    payload[5] = 0x00; //interval_l
+    payload[6] = CANNODE_MCB; //client address
+    payload[7] = 0x01; //pid
+    StartECanTxTask(c29id, payload, 8, 30);
+
+    // get Z position
+    c29id.all = 0x180f195f;
+    payload[0] = 0x01; //pid
+    payload[1] = 0x31; //subid
+    payload[2] = 0; //devid
+    StartECanTxTask(c29id, payload, 3, 30);
+
+    monitorHandwheel(true);
+    initMonitor();
+}
+
+void
+Init_Peripherals(void)
+{
+    InitCpuTimers();
+    Timer_Init();
+    SCI_Init();
+    EPwmTimerInit();
+    I2CA_Init();
+    SPI_Init();
+    ECAN_Init();
+    EQEP_Init();
+    ADC_Init();
+    USB_Init();
+}
+
+void GPIO_Init(void)
+{
+    EALLOW;
+    GpioCtrlRegs.GPAMUX1.all = 0x0000;
+    GpioCtrlRegs.GPAMUX2.all = 0x0000;
+    GpioCtrlRegs.GPBMUX1.all = 0x0000;
+    GpioCtrlRegs.GPBMUX2.all = 0x0000;
+    GpioCtrlRegs.AIOMUX1.all = 0x0000;
+
+    GpioCtrlRegs.GPADIR.all = 0x0000;
+    GpioCtrlRegs.GPBDIR.all = 0x0000;
+    GpioCtrlRegs.AIODIR.all = 0x0000;
+
+    GpioCtrlRegs.GPAQSEL1.all = 0x0000;
+    GpioCtrlRegs.GPAQSEL2.all = 0x0000;
+    GpioCtrlRegs.GPBQSEL1.all = 0x0000;
+    GpioCtrlRegs.GPBQSEL2.all = 0x0000;
+
+    GpioCtrlRegs.GPAPUD.all = 0x0000;
+    GpioCtrlRegs.GPBPUD.all = 0x0000;
+
+    GpioCtrlRegs.GPACTRL.bit.QUALPRD0 = 0xFF;  // for GPIO7
+    GpioCtrlRegs.GPACTRL.bit.QUALPRD2 = 0xFF;  // for GPIO20
+    GpioCtrlRegs.GPBCTRL.bit.QUALPRD1 = 0xFF;  // for GPIO44
+    GpioCtrlRegs.GPBCTRL.bit.QUALPRD2 = 0xFF;  // for GPIO53,54
+
+    // GPIO-0 - NP_D0_IN
+    GpioCtrlRegs.GPAPUD.bit.GPIO0 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO0 = 0;      // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO0 = 2;    // Sample number = 6
+
+    // GPIO-1 - U_Indicator_Green
+    GpioCtrlRegs.GPAPUD.bit.GPIO1 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO1 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO1 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPASET.bit.GPIO1 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-2 - LED Indicator on board
+    GpioCtrlRegs.GPAPUD.bit.GPIO2 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO2 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO2 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPASET.bit.GPIO2 = 1;      // uncomment if --> Set Low initially
+
+    // GPIO-0 - NP_D1_IN
+    GpioCtrlRegs.GPAPUD.bit.GPIO3 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO3 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO3 = 0;      // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO3 = 2;    // Sample number = 6
+
+    // GPIO-4 - Upper LED_2 switch
+    GpioCtrlRegs.GPAPUD.bit.GPIO4 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO4 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO4 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO4 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-5 - TL Pwr
+    GpioCtrlRegs.GPAPUD.bit.GPIO5 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO5 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO5 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO5 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-6 - Upper LED_1 switch
+    GpioCtrlRegs.GPAPUD.bit.GPIO6 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO6 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO6 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO6 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-7 - RL button
+    GpioCtrlRegs.GPAPUD.bit.GPIO7 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO7 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO7 = 0;      // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO7 = 2;    // Sample number = 6
+
+    // GPIO-8 - Upper LED_0 switch
+    GpioCtrlRegs.GPAPUD.bit.GPIO8 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO8 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO8 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO8 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-9 -
+    GpioCtrlRegs.GPAPUD.bit.GPIO9 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO9 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO9 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO9 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-10 -
+    GpioCtrlRegs.GPAPUD.bit.GPIO10 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO10 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO10 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO10 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-11 - L_Indicator_Red
+    GpioCtrlRegs.GPAPUD.bit.GPIO11 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO11 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO11 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPASET.bit.GPIO11 = 1;     // uncomment if --> Set Low initially
+
+    // GPIO-12 - RAST
+    GpioCtrlRegs.GPAPUD.bit.GPIO12 = 0;     // Enable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO12 = 0;         // GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO12 = 0;          // input
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO12 = 0;        // XINT1 Synch to SYSCLKOUT only
+    GpioIntRegs.GPIOXINT1SEL.bit.GPIOSEL = 12;   // XINT1 is GPIO12
+    XIntruptRegs.XINT1CR.bit.POLARITY = 1;       // Rising edge interrupt
+    XIntruptRegs.XINT1CR.bit.ENABLE = 1;         // Enable XINT1
+
+    // GPIO-13 - VBUS monitor
+    GpioCtrlRegs.GPAPUD.bit.GPIO13 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPAMUX1.bit.GPIO13 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO13 = 0;     // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO13 = 2;   // Sample number = 6
+
+    // GPIO-20 - ECO button
+    GpioCtrlRegs.GPAPUD.bit.GPIO20 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPAMUX2.bit.GPIO20 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO20 = 0;     // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO20 = 2;   // Sample number = 6
+
+    // GPIO-21 -
+    GpioCtrlRegs.GPAPUD.bit.GPIO21 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPAMUX2.bit.GPIO21 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO21 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO21 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-23 - SNAP button 2
+    GpioCtrlRegs.GPAPUD.bit.GPIO23 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPAMUX2.bit.GPIO23 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO23 = 0;     // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO23 = 2;   // Sample number = 6
+
+    // GPIO-25 - LED Enable
+    GpioCtrlRegs.GPAPUD.bit.GPIO25 = 1;     // Disable pull-up for GPIO25
+    GpioCtrlRegs.GPAMUX2.bit.GPIO25 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO25 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-28 - INT/EXT
+    GpioCtrlRegs.GPAPUD.bit.GPIO28 = 1;     // Disable pull-up for GPIO28
+    GpioCtrlRegs.GPAMUX2.bit.GPIO28 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO28 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO28 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-29 -
+    GpioCtrlRegs.GPAPUD.bit.GPIO29 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPAMUX2.bit.GPIO29 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO29 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPACLEAR.bit.GPIO29 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-39 - L_Indicator_Green
+    GpioCtrlRegs.GPBPUD.bit.GPIO39 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPBMUX1.bit.GPIO39 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO39 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPBSET.bit.GPIO39 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-40 -
+    GpioCtrlRegs.GPBPUD.bit.GPIO40 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPBMUX1.bit.GPIO40 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO40 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPBCLEAR.bit.GPIO40 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-41 -
+    GpioCtrlRegs.GPBPUD.bit.GPIO41 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPBMUX1.bit.GPIO41 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO41 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPBCLEAR.bit.GPIO41 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-42 - Lower LED switch
+    GpioCtrlRegs.GPBPUD.bit.GPIO42 = 1;      // Disable pull-up
+    GpioCtrlRegs.GPBMUX1.bit.GPIO42 = 0;     // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO42 = 1;      // 1=OUTput,  0=INput
+    GpioDataRegs.GPBCLEAR.bit.GPIO42 = 1;    // uncomment if --> Set Low initially
+
+    // GPIO-43 - L_HAL Switch
+    GpioCtrlRegs.GPBPUD.bit.GPIO43 = 1;     // Disable pull-up for GPIO43
+    GpioCtrlRegs.GPBMUX1.bit.GPIO43 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO43 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPBCLEAR.bit.GPIO43 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-44 - LightManager
+    GpioCtrlRegs.GPBPUD.bit.GPIO44 = 1;     // Disable pull-up for GPIO44
+    GpioCtrlRegs.GPBMUX1.bit.GPIO44 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO44 = 0;     // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPBQSEL1.bit.GPIO44 = 2;   // Sample number = 6
+
+    // GPIO-52 - U_HAL Switch
+    GpioCtrlRegs.GPBPUD.bit.GPIO52 = 1;     // Disable pull-up for GPIO52
+    GpioCtrlRegs.GPBMUX2.bit.GPIO52 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO52 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPBCLEAR.bit.GPIO52 = 1;       // uncomment if --> Set Low initially
+
+    // GPIO-53 - TL button
+    GpioCtrlRegs.GPBPUD.bit.GPIO53 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPBMUX2.bit.GPIO53 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO53 = 0;     // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPBQSEL2.bit.GPIO53 = 2;   // Sample number = 6
+
+    // GPIO-54 - SNAP button 1
+    GpioCtrlRegs.GPBPUD.bit.GPIO54 = 1;     // Disable pull-up for GPIO54
+    GpioCtrlRegs.GPBMUX2.bit.GPIO54 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO54 = 0;     // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPBQSEL2.bit.GPIO54 = 2;   // Sample number = 6
+
+    // GPIO-55 - U_Indicator_Red
+    GpioCtrlRegs.GPBPUD.bit.GPIO55 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPBMUX2.bit.GPIO55 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO55 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPBSET.bit.GPIO55 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-56 - LED INDICATOR on board
+    GpioCtrlRegs.GPBPUD.bit.GPIO56 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPBMUX2.bit.GPIO56 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO56 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPBSET.bit.GPIO56 = 1;     // uncomment if --> Set Low initially
+
+    // GPIO-57 - NP_D2_IN
+    GpioCtrlRegs.GPBPUD.bit.GPIO57 = 1;     // Disable pull-up for GPIO57
+    GpioCtrlRegs.GPBMUX2.bit.GPIO57 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO57 = 0;     // 1=OUTput,  0=INput
+    GpioCtrlRegs.GPBQSEL2.bit.GPIO57 = 2;   // Sample number = 6
+
+    // GPIO-58 - TL Dir
+    GpioCtrlRegs.GPBPUD.bit.GPIO58 = 1;     // Disable pull-up
+    GpioCtrlRegs.GPBMUX2.bit.GPIO58 = 0;    // 0=GPIO
+    GpioCtrlRegs.GPBDIR.bit.GPIO58 = 1;     // 1=OUTput,  0=INput
+    GpioDataRegs.GPBCLEAR.bit.GPIO58 = 1;   // uncomment if --> Set Low initially
+
+    // GPIO-22 - TrigIn
+    GpioCtrlRegs.GPAMUX2.bit.GPIO22 = 0;         // GPIO
+    GpioCtrlRegs.GPADIR.bit.GPIO22 = 0;          // input
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO22 = 0;        // XINT2 Synch to SYSCLKOUT only
+    GpioIntRegs.GPIOXINT2SEL.bit.GPIOSEL = 22;   // XINT2 is GPIO22
+    XIntruptRegs.XINT2CR.bit.POLARITY = 1;       // Rising edge interrupt
+    XIntruptRegs.XINT2CR.bit.ENABLE = 1;         // Enable XINT1
+
+    /*  Config SPIA Port */
+    GpioCtrlRegs.GPAPUD.bit.GPIO16 = 1;   // Disable pull-up on GPIO16 (SPISIMOA)
+    GpioCtrlRegs.GPAPUD.bit.GPIO17 = 1;   // Disable pull-up on GPIO17 (SPISOMIA)
+    GpioCtrlRegs.GPAPUD.bit.GPIO18 = 1;   // Disable pull-up on GPIO18 (SPICLKA)
+    GpioCtrlRegs.GPAPUD.bit.GPIO19 = 1;   // Disable pull-up on GPIO19 (SPISTEA)
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO16 = 3; // Asynch input GPIO16 (SPISIMOA)
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO17 = 3; // Asynch input GPIO17 (SPISOMIA)
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO18 = 3; // Asynch input GPIO18 (SPICLKA)
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO19 = 3; // Asynch input GPIO19 (SPISTEA)
+    GpioCtrlRegs.GPAMUX2.bit.GPIO16 = 1;  // Configure GPIO16 as SPISIMOA
+    GpioCtrlRegs.GPAMUX2.bit.GPIO17 = 1;  // Configure GPIO17 as SPISOMIA
+    GpioCtrlRegs.GPAMUX2.bit.GPIO18 = 1;  // Configure GPIO18 as SPICLKA
+    GpioCtrlRegs.GPAMUX2.bit.GPIO19 = 1;  // Configure GPIO19 as SPISTEA
+
+    /*  Config SPIB Port */
+    GpioCtrlRegs.GPAPUD.bit.GPIO24 = 1;   // Disable pull-up on GPIO12 (SPISIMOB)
+    GpioCtrlRegs.GPAPUD.bit.GPIO14 = 1;   // Disable pull-up on GPIO14 (SPICLKB)
+    GpioCtrlRegs.GPAPUD.bit.GPIO15 = 1;   // Disable pull-up on GPIO15 (SPISCSB)
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO24 = 3; // Asynch input GPIO12 (SPISIMOB)
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO14 = 3; // Asynch input GPIO14 (SPICLKB)
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO15 = 3; // Asynch input GPIO15 (SPISCSB)
+    GpioCtrlRegs.GPAMUX2.bit.GPIO24 = 3;  // Configure GPIO12 as SPISIMOB
+    GpioCtrlRegs.GPAMUX1.bit.GPIO14 = 3;  // Configure GPIO14 as SPICLKB
+    GpioCtrlRegs.GPAMUX1.bit.GPIO15 = 3;  // Configure GPIO15 as SPISCSB
+
+    /* Config I2C Port */
+    GpioCtrlRegs.GPBPUD.bit.GPIO32 = 1;    // Disable pull-up for GPIO32 (SDAA)
+    GpioCtrlRegs.GPBPUD.bit.GPIO33 = 1;    // Disable pull-up for GPIO33 (SCLA)
+    GpioCtrlRegs.GPBQSEL1.bit.GPIO32 = 3;  // Asynch input GPIO32 (SDAA)
+    GpioCtrlRegs.GPBQSEL1.bit.GPIO33 = 3;  // Asynch input GPIO33 (SCLA)
+    GpioCtrlRegs.GPBMUX1.bit.GPIO32 = 1;   // Configure GPIO32 for SDAA operation
+    GpioCtrlRegs.GPBMUX1.bit.GPIO33 = 1;   // Configure GPIO33 for SCLA operation
+
+    /* Config ECAN Port */
+    GpioCtrlRegs.GPAMUX2.bit.GPIO30 = 1;    // 0=GPIO,  1=CANRXA
+    GpioCtrlRegs.GPAPUD.bit.GPIO30 = 1;     // Disable pull-up for GPIO30 (CANRXA)
+    GpioCtrlRegs.GPAQSEL2.bit.GPIO30 = 3;   // Asynch qual for GPIO30 (CANRXA)
+    GpioCtrlRegs.GPAMUX2.bit.GPIO31 = 1;    // 0=GPIO,  1=CANTXA
+    GpioCtrlRegs.GPAPUD.bit.GPIO31 = 1;     // Disable pull-up for GPIO31 (CANTXA)
+
+    /* Config EQEP Port */
+    GpioCtrlRegs.GPBMUX2.bit.GPIO50 = 1;    // 1=EQEP1A
+    GpioCtrlRegs.GPBMUX2.bit.GPIO51 = 1;    // 1=EQEP1B
+    GpioCtrlRegs.GPBPUD.bit.GPIO50 = 1;   // Disable pull-up
+    GpioCtrlRegs.GPBPUD.bit.GPIO51 = 1;   // Disable pull-up
+
+    // Configure USB pin
+    //USBGPIOEnable();
+
+    EDIS;
+}
+

@@ -1,0 +1,94 @@
+/*
+ * eeprom.h
+ *
+ *  Created on: 2016?6?26?
+ *      Author: xiatian
+ */
+
+#ifndef SOURCE_EEPROM_H_
+#define SOURCE_EEPROM_H_
+
+#include "TaskMgr.h"
+
+#define EEPROM_I2CADDR	0x50	// 1010 000
+#define PAGESIZE		128		// size of 24FC512
+//#define PAGESIZE		64		// size of 24FC256
+
+// define EEPROM BANK address
+#define EROM_BANK0		0
+#define EROM_BANK1		128
+#define EROM_BANK2		256
+#define EROM_BANK3		384
+#define EROM_BANK4		512
+#define EROM_BANK5		640
+#define EROM_BANK6		768
+#define EROM_BANK7		896
+#define EROM_BANK8		1024
+#define EROM_BANK9		1152
+#define EROM_BANK10		1280
+
+#define BANK_MCB		EROM_BANK0
+#define BANK_XYZ		EROM_BANK2
+#define BANK_LIGHTCTRL	EROM_BANK4
+#define BANK_RFLM		EROM_BANK6
+#define BANK_TMLM		EROM_BANK8
+#define BANK_USER		EROM_BANK10
+
+enum EROMOBJ_STS {
+	EROM_IDLE,
+	EROM_WAITING,
+	EROM_TOREAD,
+	EROM_READING,
+	EROM_TOWRITE,
+	EROM_WRITING,
+	EROM_WRINTERVAL,
+	EROM_FINISH,
+	EROM_WRONGSTS
+};
+
+typedef struct {
+	uint8_t DevAddr;
+	uint8_t Bank;
+	Uint16 RegAddr;
+	uint8_t Len;
+	uint8_t *pBuf;
+} Erom_Ops;
+
+struct BYTES {      // bits   description
+   Uint16      Byte0:8;     // 7:0
+   Uint16      Byte1:8;     // 15:8
+   Uint16      Byte2:8;     // 23:16
+   Uint16      Byte3:8;     // 31:24
+};
+
+struct WORDS {
+	Uint16	Word0:16;
+	Uint16  Word1:16;
+};
+
+typedef union {
+   Uint32           u32;
+   int32			s32;
+   float            Float;
+   struct BYTES   	byte;
+   struct WORDS		word;
+} type32;
+
+typedef struct {
+	enum EROMOBJ_STS Status;
+	enum EROMOBJ_STS Event;
+	uint8_t DevAddr;
+	Uint16	DataLen;           // remaining length
+	Uint16 	RegAddr;
+	void 	*pData;            // data of this write
+	uint8_t *pBuf;             // start of whole data
+	int8_t 	MemProd;
+	tSemiphore *pSem;
+} EromTask;
+
+extern void EEPROM_Reset(void);
+extern TASKSTATUS EepromTaskMgr(EromTask *eromtask);
+extern void StartEromTask(Uint16 RegAddr, Uint16 DataLen, Uint16 *pBuf, Bool Rw, tSemiphore *pSem);
+
+
+#endif /* SOURCE_EEPROM_H_ */

@@ -1,0 +1,206 @@
+/*
+ * app.c
+ *
+ *  Created on: 2016.5.27
+ *      Author: xiatian
+ */
+
+#include "include.h"
+
+// The system tick rate expressed both as ticks per second and a millisecond period.
+#define SYSTICKS_PER_SECOND     100
+#define SYSTICK_PERIOD_MS       (1000 / SYSTICKS_PER_SECOND)
+
+// Variables tracking transmit and receive counts.
+volatile uint32_t g_ulTxCount = 0;
+volatile uint32_t g_ulRxCount = 0;
+
+// Global flag indicating that a USB configuration has been set.
+static volatile tBoolean g_bUSBConfigured = false;
+uint32_t g_BLflag = 0xAAAAAAAA;
+
+
+uint8_t MsgIndex = 0;
+bool HeaderFlag = false;
+bool DLEflag = false;
+UsbRingBuf UsbRxBuffer;
+
+
+// The error routine that is called if the driver library encounters an error.
+#ifdef DEBUG
+void
+__error__(char *pcFilename, uint32_t ulLine)
+{
+}
+#endif
+
+void
+UsbRingBufInit(void)
+{
+    uint8_t i = 0;
+    UsbRxBuffer.ReadIndex = 0;
+    UsbRxBuffer.WriteIndex = 0;
+    //memset(UsbRxBuffer.Buffer, 0, BULK_BUFFER_SIZE);
+    for (i = 0; i < BULK_BUFFER_SIZE; i++)
+        UsbRxBuffer.Buffer[i] = 0;
+}
+
+static uint32_t
+MsgHandler(tUSBDBulkDevice *psDevice, uint8_t *pcData,
+                  uint32_t ulNumBytes)
+{
+    uint32_t ulLoop = ulNumBytes;
+    uint32_t ulCount = ulLoop;
+    uint32_t ulReadIndex = (uint32_t)(pcData - g_pui8USBRxBuffer);
+    if (ulReadIndex > 255)
+        return ulCount;
+
+    if (HeaderFlag == false) {
+        do {
+            if (g_pui8USBRxBuffer[ulReadIndex] == 0x10) {
+                if (DLEflag) {
+                    ulReadIndex = (++ulReadIndex == BULK_BUFFER_SIZE) ? 0 : ulReadIndex;
+                    DLEflag = false;
+                    continue;
+                }
+                if ( (g_pui8USBRxBuffer[ulReadIndex + 1] == 0x02 && ulReadIndex != 255) ||
+                        (g_pui8USBRxBuffer[0] == 0x02 && ulReadIndex == 255) ) {
+                    HeaderFlag = true;
+                    break;
+                }else {
+                    ulReadIndex = (++ulReadIndex == BULK_BUFFER_SIZE) ? 0 : ulReadIndex;
+                    DLEflag = true;
+                }
+            }else {
+                ulReadIndex = (++ulReadIndex == BULK_BUFFER_SIZE) ? 0 : ulReadIndex;
+            }
+        } while (ulLoop--);
+    }
+
+    if (HeaderFlag) {
+        while (ulLoop--) {
+            UsbRxBuffer.Buffer[UsbRxBuffer.WriteIndex++] = g_pui8USBRxBuffer[ulReadIndex++];
+            ulReadIndex = (ulReadIndex == BULK_BUFFER_SIZE) ? 0 : ulReadIndex;
+        }
+        if (UsbRxBuffer.WriteIndex > 255) {
+            MsgIndex = 0;
+            HeaderFlag = false;
+            UsbRingBufInit();
+            return ulCount;
+        }
+        if (UsbRxBuffer.Buffer[UsbRxBuffer.WriteIndex-2] == 0x10 && UsbRxBuffer.Buffer[UsbRxBuffer.WriteIndex-1] == 0x03) {
+            if ( UsbRxBuffer.Buffer[UsbRxBuffer.WriteIndex-3] != 0x10 ||
+                    (UsbRxBuffer.Buffer[UsbRxBuffer.WriteIndex-3] == 0x10 && UsbRxBuffer.Buffer[UsbRxBuffer.WriteIndex-4] == 0x10) ) {
+                UsbFrameProcess(&UsbRxBuffer);
+                MsgIndex = 0;
+                HeaderFlag = false;
+                UsbRingBufInit();
+            }
+        }else {
+            MsgIndex++;
+        }
+    }
+    return ulCount;
+}
+
+
+uint32_t
+TxHandler(void *pvCBData, uint32_t ulEvent, uint32_t ulMsgValue,
+          void *pvMsgData)
+{
+    if(ulEvent == USB_EVENT_TX_COMPLETE){
+        g_ulTxCount += ulMsgValue;
+    }
+    return(0);
+}
+
+uint32_t
+RxHandler(void *pvCBData, uint32_t ulEvent, uint32_t ulMsgValue,
+          void *pvMsgData)
+{
+    switch(ulEvent) {
+	case USB_EVENT_CONNECTED: {
+		g_bUSBConfigured = true;
+		UARTprintf("Host connected.\n");
+		USBBufferFlush(&g_sTxBuffer);
+		USBBufferFlush(&g_sRxBuffer);
+		AppCheck();
+		break;
+	}
+	case USB_EVENT_DISCONNECTED: {
+		g_bUSBConfigured = false;
+		UARTprintf("Host disconnected.\n");
+		break;
+	}
+	case USB_EVENT_RX_AVAILABLE: {
+		tUSBDBulkDevice *psDevice;
+		psDevice = (tUSBDBulkDevice *)pvCBData;
+		return(MsgHandler(psDevice, pvMsgData, ulMsgValue));
+	}
+	case USB_EVENT_SUSPEND:
+	case USB_EVENT_RESUME: {
+		break;
+	}
+	default:
+		break;
+    }
+    return(0);
+}
+
+//*****************************************************************************
+//
+// This is the main application entry function.
+//
+//*****************************************************************************
+int main(void)
+{
+    DisableDog();
+    DINT;
+    IER = 0x0000;
+    IFR = 0x0000;
+    // Set the clocking to run from the PLL
+    Device_Init();
+
+    InitPieCtrl();
+    InitPieVectTable();
+
+    EPwm_RegisterISR();
+    Timer_RegisterIsr();
+    I2CA_RegisterIsr();
+    XINT_RegisterISR();
+    USBIntRegister(USB0_BASE, f28x_USB0DeviceIntHandler);
+#ifdef FLASH
+    MemCopy(&RamfuncsLoadStart, &RamfuncsLoadEnd, &RamfuncsRunStart);
+    InitFlash();
+#endif
+
+    Init_Peripherals();
+
+    // Enable interrupts
+    PieCtrlRegs.PIEIER1.bit.INTx4 = 1;      // Enable PIE Group 1 INT4  XINT
+    PieCtrlRegs.PIEIER1.bit.INTx7 = 1;      // Enable PIE Group 1 INT7  TINT0
+    PieCtrlRegs.PIEIER3.bit.INTx1 = 1;      // Enable PIE Group 3 INT1  PWM1
+    PieCtrlRegs.PIEIER3.bit.INTx2 = 1;      // Enable PIE Group 3 INT2  PWM2
+    PieCtrlRegs.PIEIER3.bit.INTx4 = 1;      // Enable PIE Group 3 INT4  PWM4
+    PieCtrlRegs.PIEIER3.bit.INTx6 = 1;      // Enable PIE Group 3 INT4  PWM6
+    PieCtrlRegs.PIEIER8.bit.INTx1 = 1;      // Enable PIE Group 8 INT1  I2CA NONE FIFO INT
+    IER |= M_INT1 | M_INT3 | M_INT8 | M_INT13;
+
+    g_bUSBConfigured = false;
+
+    EINT;
+    ERTM;
+
+    ReadSliderDIP();
+    TaskListInit();
+    SystemInit();
+    USB_Bulk_Init();
+    DELAY_US(1000L);
+
+    while(1)
+    {
+        TaskPoll();
+        ECAN_Listen();
+    }
+}
+

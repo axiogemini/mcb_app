@@ -1,0 +1,358 @@
+/*
+ * MainControl.h
+ *
+ *  Created on: 2016Äê7ÔÂ1ÈÕ
+ *      Author: ZCTIAXIA
+ */
+
+#ifndef SRC_MAINCONTROL_H_
+#define SRC_MAINCONTROL_H_
+
+#define REFL_NUM  			7
+#define NP_NUM    			6
+
+#define DODGE_NP					(-3000000)        // move down 3mm for nosepiece switching
+#define MAX_DEVIATION_Z      		156250            // the max deviation between actual position and target position of Z-axis
+#define LOAD_TRAVEL					10000000          // travel of load/unload
+#define MAX_PARFOCAL_TRAVEL         2000000           // to protect the nosepiece and sample in case the parameter is wrong
+
+extern char AppVersion[];
+extern char AppDate[];
+extern char AppName_Axiolab[];
+extern char AppName_Axioscope[];
+extern char AppName_Reflector[];
+extern char AppName_Nosepiece[];
+extern char AppName_Key[];
+extern char AppName_RLTL[];
+extern char AppName_Lightctrl[];
+
+extern char SerialNumber[];
+extern char ChangerScaling[];
+extern char ServoScaling[];
+extern char AxisScaling[];
+
+extern Uint16 RLMatrix[REFL_NUM][NP_NUM];
+extern Uint16 TLMatrix[NP_NUM];
+extern float np_mag[NP_NUM];
+extern float np_mag2[NP_NUM];
+
+typedef enum {
+	Axiolab,
+	Axioscope
+} PRODUCTSERIE;
+
+typedef struct {
+	bool 	Status;
+	uint8_t	Pid;
+	Uint32	StartTime;
+} LOCK;
+
+enum LIGHTTYPE {
+	NoLightSource,
+	LightType_LED,
+	LightType_BULB,
+};
+
+typedef enum {
+    LSW_OFF,
+    LSW_UPPER,
+    LSW_LOWER,
+}eLIGHTSW;
+
+typedef struct {
+	LOCK Lock;
+	Uint16 status;
+	Uint16 baseRatio;
+	Uint16 Intensity_I;
+	enum LIGHTTYPE Type;
+	float baseIntensity;	// restore the last non-zero intensity
+	float Intensity;
+} tLightSource;
+
+enum ENCPOSITION {
+	Position0,
+	Position1,
+	Position2,
+	Position3,
+	Position4,
+	Position5,
+	Position6
+};
+
+typedef struct {
+	bool Settled;
+	bool Motorized;
+	LOCK Lock;
+	Uint8 Encoder;
+	Uint16 status;
+	Uint32 stableTime;           // system tick when nosepiece stop moving
+	enum ENCPOSITION Position;
+} NOSEPEICE;
+
+enum ReflctType {
+	Pol2 = 1,
+	Pol4,
+	Pol6
+};
+
+typedef struct {
+	bool Settled;
+	enum ReflctType Type;
+	Uint8 Encoder;
+	Uint16 status;
+//	enum ENCPOSITION Position;
+	Uint16 Position;					// the length of enum is uncertain and normall 4-byte. change to Uint16 to work with CAN29 
+} REFLECTOR;
+
+typedef struct {
+	bool Settled;
+	uint8_t Encoder;
+//	enum ENCPOSITION Position;
+	Uint16 Position;
+} SLIDER;
+
+typedef struct {
+	bool Settled;
+	bool moving;
+	LOCK Lock;
+	int32 Position;
+	int32 PosPrevPar;	// the latched position when nosepiece leaving a settled position
+	int32 SoftLimit;
+//	int32 Parcenter;
+	enum ENCPOSITION PrevParIndex;
+} MOTORPART;
+
+typedef struct {
+	bool Settled;
+	Uint16 Intensity;
+} tHAL100;
+
+enum FLTYPE {
+	U365,
+	U385,
+	Blue,
+	Cyan,
+	Lime,
+	Red,
+	UV0425
+};
+
+typedef struct {
+	bool Settled;
+	enum FLTYPE Type;
+	Uint16 Intensity;
+} FL_CHANNEL;
+
+typedef struct {
+	bool Settled;
+	FL_CHANNEL Channel_0;
+	FL_CHANNEL Channel_1;
+	FL_CHANNEL Channel_2;
+	FL_CHANNEL Channel_3;
+}COLIBRI;
+
+typedef enum {
+	NORM,
+	SETUP,
+	OSDMENU
+} DEV_WORKMODE;
+
+typedef enum {
+	VAR_RL,
+	VAR_FL,
+	VAR_Bio,
+	VAR_Vario
+} VARIANT;
+
+typedef struct {
+    bool LampMode;
+    bool UsbRenew;
+    tLightSource *pLed;
+    LOCK Lock;
+} LAMP_LED;
+
+typedef struct {
+//	enum LIGHTSW Sw;
+	Uint16 Sw;					// leilc: to keep the same type with CAN29 changer device
+	Uint16 status;
+	LOCK Lock;
+} tLightSw;
+
+typedef enum {
+	sts00,
+	sts01,
+	sts10,
+	sts11,
+	sts100
+}KEYSTATUS;
+
+typedef struct {
+	int32 KnobValue;
+	bool Eco;
+	KEYSTATUS RLTLStatus;
+	KEYSTATUS LmSnap;
+	Uint32 StartTime;
+	// should we split the StartTime to the start time of arbitary single / combo keys?
+	Uint32 StartTime_single_snap;
+}KEYS;
+
+typedef struct {
+	bool Enable;
+	Uint16 URatio;
+	Uint16 LRatio;
+} tLightManager;
+
+typedef enum {
+	IND_NONE,
+	IND_RED,
+	IND_GREEN,
+	IND_ORANGE,
+	IND_CURRENT
+}eIndicatorColor;
+
+typedef enum {
+	Indsts_Norm,
+	Indsts_1, //off
+	Indsts_2, //on
+	Indsts_3, //off
+	Indsts_4, //on
+	Indsts_5, //off
+	Indsts_6, //on
+	Indsts_7, //off
+	Indsts_8  //immediately return to 0
+} eIndicatorStatus;
+
+typedef struct {
+	eIndicatorColor BlinkColour;
+	eIndicatorColor RequireColour;
+	eIndicatorColor NormalColour;
+	eIndicatorStatus IndSts;
+	Uint32 BlinkTime;
+}tIndicator;
+
+typedef struct {
+	DEV_WORKMODE Mode;
+	VARIANT VarType;
+	PRODUCTSERIE Serie;
+	tLightSw RLTLSw;
+	tLightSource ULight;
+	tLightSource LLight;
+	NOSEPEICE NosePiece;
+	REFLECTOR Reflector;
+	SLIDER Slider;
+	bool dodge_z;
+	MOTORPART MotorZ;
+	MOTORPART MotorX;
+	MOTORPART MotorY;
+	tHAL100 HAL100;
+	COLIBRI Colibri;
+	KEYS  Keys;
+	tLightManager LM;
+	bool DazzleProtect;
+	LAMP_LED LampLed;
+	Uint64 LockMask;
+	uint8_t DipCode;
+	int32  HandWheelCode;
+	tIndicator Indc;
+	bool parfocalEnable;
+} Device;
+
+typedef struct {
+	uint8_t DevId;
+	LOCK	*pLock;
+} LockTaskObj;
+
+#define LedPowerOn()    GpioDataRegs.GPASET.bit.GPIO25 = 1
+#define LedPowerOff()   GpioDataRegs.GPACLEAR.bit.GPIO25 = 1
+
+#define DisableHAL100()  GpioDataRegs.GPASET.bit.GPIO28 = 1
+#define EnableHAL100()  GpioDataRegs.GPACLEAR.bit.GPIO28 = 1;
+
+#define EnableLBULB()   GpioDataRegs.GPBSET.bit.GPIO43 = 1
+
+#define DisableLBULB()  GpioDataRegs.GPBCLEAR.bit.GPIO43 = 1
+
+#define EnableUBULB()   GpioDataRegs.GPBSET.bit.GPIO52 = 1
+
+#define DisableUBULB()  GpioDataRegs.GPBCLEAR.bit.GPIO52 = 1
+
+#define EnableLLED()    GpioDataRegs.GPBSET.bit.GPIO42 = 1
+
+#define DisableLLED()   GpioDataRegs.GPBCLEAR.bit.GPIO42 = 1
+
+#define EnableULED0()  	GpioDataRegs.GPASET.bit.GPIO8 = 1;\
+DisableULED1();\
+DisableULED2()
+
+#define DisableULED0()  GpioDataRegs.GPACLEAR.bit.GPIO8 = 1
+
+#define EnableULED1()  	GpioDataRegs.GPASET.bit.GPIO6 = 1;\
+DisableULED0();\
+DisableULED2()
+
+#define DisableULED1()  GpioDataRegs.GPACLEAR.bit.GPIO6 = 1
+
+#define EnableULED2()  	GpioDataRegs.GPASET.bit.GPIO4 = 1;\
+DisableULED0();\
+DisableULED1()
+
+#define DisableULED2()  GpioDataRegs.GPACLEAR.bit.GPIO4 = 1
+
+#define DisableULEDALL()	DisableULED0();\
+DisableULED1();\
+DisableULED2()
+
+#define ReadTLButton()  	GpioDataRegs.GPBDAT.bit.GPIO53
+#define ReadRLButton()  	GpioDataRegs.GPADAT.bit.GPIO7
+#define ReadSnapButton()    (GpioDataRegs.GPBDAT.bit.GPIO54 || GpioDataRegs.GPADAT.bit.GPIO23)
+#define ReadHandWheel_X()	GpioDataRegs.GPBDAT.bit.GPIO54
+#define ReadHandWheel_Y()	GpioDataRegs.GPADAT.bit.GPIO23
+#define ReadLm				GpioDataRegs.GPBDAT.bit.GPIO44
+#define ReadLmButton()		!GpioDataRegs.GPBDAT.bit.GPIO44
+#define ReadEcoButton()  	GpioDataRegs.GPADAT.bit.GPIO20
+
+#define LRedOff()	GpioDataRegs.GPASET.bit.GPIO11 = 1
+#define LRedOn()		GpioDataRegs.GPACLEAR.bit.GPIO11 = 1
+#define LGreenOff()		GpioDataRegs.GPBSET.bit.GPIO39 = 1
+#define LGreenOn()		GpioDataRegs.GPBCLEAR.bit.GPIO39 = 1
+#define URedOff()	GpioDataRegs.GPBSET.bit.GPIO55 = 1
+#define URedOn()		GpioDataRegs.GPBCLEAR.bit.GPIO55 = 1
+#define UGreenOff()		GpioDataRegs.GPASET.bit.GPIO1 = 1
+#define UGreenOn()		GpioDataRegs.GPACLEAR.bit.GPIO1 = 1
+
+#define SIZE_OF_RLMATRIX 36
+#define SIZE_OF_TLMATRIX 6
+
+#define CurrentRLRatio  	 RLMatrix[g_Device.Reflector.Position][g_Device.NosePiece.Position -1]
+#define CurrentTLRatio  	 TLMatrix[g_Device.NosePiece.Position -1]
+#define CurrentParfocal		 PcTable.Z[g_Device.NosePiece.Position-1]
+#define CurrentParcenter_X	 PcTable.X[g_Device.NosePiece.Position-1]
+#define CurrentParcenter_Y	 PcTable.Y[g_Device.NosePiece.Position-1]
+
+#define PrevParfocal         PcTable.Z[g_Device.MotorZ.PrevParIndex-1]
+#define PrevParcenter_X      PcTable.Z[g_Device.MotorX.PrevParIndex-1]
+#define PrevParcenter_Y      PcTable.Z[g_Device.MotorY.PrevParIndex-1]
+
+
+
+extern Device g_Device;
+extern Device g_DeviceShadow;
+
+
+extern void HardwareInit(void);
+extern TASKSTATUS MainControl(void);
+extern void ReadRL_TL(void);
+extern void Read_NPRefl_Encoder(void);
+extern void Read_NPRefl_Position(void);
+extern void ReadSliderDIP(void);
+extern void CreateLockTask(uint8_t DeviceId, uint8_t Pid, LOCK *pLock);
+extern void Reset_gDeviceShadow(void);
+
+void LoadSample(void);
+void DodgeNosePiece(void);
+
+Uint16 getHandwheelResolution(float magnification);
+void switchLampLed(eLIGHTSW sw);
+
+
+#endif /* SRC_MAINCONTROL_H_ */

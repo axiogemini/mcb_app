@@ -1,0 +1,27 @@
+/*
+ * PWM5.h
+ *
+ *  Created on: 2015Äê7ÔÂ27ÈÕ
+ *      Author: zctiaxia
+ */
+
+#ifndef SOURCE_PWM5_H_
+#define SOURCE_PWM5_H_
+
+#define PWM_INT_ENABLE  1
+#define PWM_INT_DISABLE 0
+#define PWM1_TIMER_TBPRD   0xFFFF
+#define PWM2_TIMER_TBPRD   0x1000
+#define PWM4_TIMER_TBPRD   0x2000
+
+extern bool g_Pwm1TimeOver;
+extern bool g_Pwm2TimeOver;
+extern bool g_Pwm4TimeOver; // for spib
+extern bool g_Pwm6TimeOver; // for eeprom write interval
+
+extern void EPwm_RegisterISR(void);
+extern void EPwmTimerInit(void);
+extern void EPwmTimerStart(volatile struct EPWM_REGS *epwmreg, Uint16 usecond);
+extern void EPwmTimerCancel(volatile struct EPWM_REGS *epwmreg);
+
+#endif /* SOURCE_PWM5_H_ */
